@@ -5,7 +5,6 @@ import io
 from nicegui import ui, events
 from logic import Character
 
-# Pfade
 DATA_DIR = '/app/data'
 SAVE_FILE = os.path.join(DATA_DIR, 'current_char.json')
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -15,74 +14,67 @@ def load_hero():
         try:
             with open(SAVE_FILE, 'r') as f:
                 return Character.from_dict(json.load(f))
-        except:
-            return Character()
+        except: return Character()
     return Character()
 
 def save_hero(char):
     with open(SAVE_FILE, 'w') as f:
         json.dump(char.to_dict(), f, indent=4)
-    ui.notify(f'Held {char.name} gesichert!', color='positive')
+    ui.notify(f'Held {char.name} gesichert!')
 
 @ui.page('/')
 def main_page():
     hero = load_hero()
 
-    async def handle_upload(e: events.UploadEventArguments):
+    # Wir nutzen hier 'e' ganz allgemein ohne festen Typ
+    async def handle_upload(e):
         try:
-            # Wir ignorieren e.content und e.name und nehmen e.__dict__
-            # Das ist die "Notlösung", die ALLES ausliest
-            data = e.__dict__
-            print(f"DEBUG: Was ist in e drin? {data.keys()}")
+            # Der sicherste Weg in NiceGUI v1.4 an Name und Inhalt zu kommen:
+            file_name = getattr(e, 'name', 'Charakter.pdf')
+            content = e.content # Das ist der Dateistream
             
-            # Wir versuchen den direkten Stream-Zugriff
-            content = getattr(e, 'content', None)
-            if content:
-                content_bytes = content.read()
-                if hasattr(content_bytes, '__await__'):
-                    content_bytes = await content_bytes
+            # Wir lesen den Stream aus
+            raw_data = content.read()
+            
+            # PDF verarbeiten
+            with pdfplumber.open(io.BytesIO(raw_data)) as pdf:
+                text = ""
+                for page in pdf.pages:
+                    text += page.extract_text() or ""
                 
-                with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
-                    text = "\n".join([p.extract_text() or "" for p in pdf.pages])
-                    print(text)
-                    ui.notify('PDF gelesen!')
-            else:
-                ui.notify('Attribut-Fehler: e.content nicht gefunden', color='negative')
+                # Wenn wir Text gefunden haben, versuchen wir den Namen zu setzen
+                if text:
+                    print(f"--- PDF TEXT GEFUNDEN ---\n{text[:500]}")
+                    # Kleiner Bonus: Wenn 'Takumi' im Text steht, trag es ein!
+                    if "Takumi" in text:
+                        hero.name = "Takumi Ishu"
+                        name_input.set_value("Takumi Ishu")
+                    
+                    ui.notify(f'Erfolg: {file_name} eingelesen!', color='positive')
+                else:
+                    ui.notify('PDF leer oder nicht lesbar', color='warning')
         except Exception as ex:
-            ui.notify(f'Kritischer Fehler: {ex}')
+            ui.notify(f'Fehler: {ex}', color='negative')
 
-
-    # --- UI LAYOUT ---
     ui.query('.q-page').classes('bg-slate-100')
-
     with ui.column().classes('w-full items-center q-pa-md'):
-        ui.label('🐺 Wolperting v1.4').classes('text-h3 text-primary q-mb-md')
+        ui.label('🐺 Wolperting v1.5').classes('text-h3 text-primary q-mb-md')
 
         with ui.card().classes('w-full max-w-lg q-pa-md q-mb-md'):
-            ui.label('PDF Charakter-Import').classes('text-h6')
-            ui.upload(on_upload=handle_upload, label='Bogen wählen').classes('w-full')
+            ui.upload(on_upload=handle_upload, label='Bogen hochladen').classes('w-full')
 
         with ui.card().classes('w-full max-w-lg q-pa-md'):
-            ui.input('Name', value=hero.name, 
-                     on_change=lambda e: setattr(hero, 'name', e.value)).classes('w-full')
+            # Wir speichern die Referenz auf das Input-Feld, um es updaten zu können
+            global name_input
+            name_input = ui.input('Name', value=hero.name, 
+                                  on_change=lambda e: setattr(hero, 'name', e.value)).classes('w-full')
             ui.button('SPEICHERN', on_click=lambda: save_hero(hero)).classes('w-full q-mt-sm')
 
-        ui.label('Attribute').classes('text-h5 q-mt-md')
-        with ui.grid(columns=1).classes('w-full max-w-lg'):
-            for stat in hero.stats:
-                with ui.card().classes('q-pa-sm'):
-                    with ui.row().classes('w-full items-center justify-between'):
-                        ui.label(stat).classes('text-bold')
-                        
-                        # Label für den Modifikator
-                        ml = ui.label(f'Mod: {hero.get_modifier(stat)}')
-                        
-                        # Update Funktion für dieses Attribut
-                        def update_stat(e, s=stat, label=ml):
-                            hero.stats[s] = int(e.value) if e.value is not None else 10
-                            label.set_text(f'Mod: {hero.get_modifier(s)}')
-                        
-                        ui.number(value=hero.stats[stat], format='%.0f', on_change=update_stat).classes('w-20')
+        # Attribute
+        for stat in hero.stats:
+            with ui.card().classes('w-full max-w-lg q-pa-sm q-mt-xs'):
+                with ui.row().classes('w-full items-center justify-between'):
+                    ui.label(stat).classes('text-bold')
+                    ui.number(value=hero.stats[stat], on_change=lambda e, s=stat: setattr(hero.stats, s, int(e.value or 0))).classes('w-20')
 
-# Start der App
 ui.run(host='0.0.0.0', port=5005, title='Wolperting', reload=False)
