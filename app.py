@@ -28,7 +28,7 @@ def save_hero(char):
 def main_page():
     hero = load_hero()
 
-        async def handle_upload(e: events.UploadEventArguments):
+    async def handle_upload(e: events.UploadEventArguments):
         try:
             # 1. Name finden
             file_name = getattr(e, 'name', 'charakter.pdf')
