@@ -32,7 +32,6 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # 1. Datei einlesen
             content = None
             for attr in ['content', 'file']:
                 target = getattr(e, attr, None)
@@ -45,58 +44,52 @@ def main_page():
                 ui.notify('Fehler beim Lesen der Dateidaten.', color='negative')
                 return
 
-            # 2. PDF Text extrahieren
             full_text = ""
             with pdfplumber.open(io.BytesIO(content)) as pdf:
                 for page in pdf.pages:
                     full_text += (page.extract_text() or "") + "\n"
                     full_text += " ".join([w['text'] for w in page.extract_words()]) + "\n"
             
-            # 3. DATEN-EXTRAKTION (Verbessert)
+            # DATEN-EXTRAKTION
             lines = [l.strip() for l in full_text.split('\n') if l.strip()]
-            
-            # Name & Klasse
-            hero.name = lines[0] if lines else "Unbekannter Held"
-            
-            # Suche nach Attributen (Muster: Wort gefolgt von Zahl)
+            if lines:
+                hero.name = lines[0]
+
+            # Stats-Suche
             stats_map = {
-                "Stärke": ["strength", "stärke", "str"],
-                "Geschicklichkeit": ["dexterity", "geschick", "dex"],
-                "Konstitution": ["constitution", "konsti", "con"],
+                "Stärke": ["strength", "str"],
+                "Geschicklichkeit": ["dexterity", "dex"],
+                "Konstitution": ["constitution", "con"],
                 "Intelligenz": ["intelligence", "int"],
-                "Weisheit": ["wisdom", "weisheit", "wis"],
+                "Weisheit": ["wisdom", "wis"],
                 "Charisma": ["charisma", "cha"]
             }
 
             for stat_name, aliases in stats_map.items():
                 for alias in aliases:
-                    # Suche nach dem Alias und der nächstgelegenen Zahl (1-20)
                     pattern = re.compile(rf'{alias}\s*(\d+)', re.IGNORECASE)
                     match = pattern.search(full_text)
                     if match:
                         hero.stats[stat_name] = int(match.group(1))
                         break
 
-            # HP & AC
-            hp_match = re.search(r'(?:hit point maximum|hp)\s*(\d+)', full_text.lower())
-            if hp_match:
-                hero.hp_max = int(hp_match.group(1))
-                hero.hp_current = hero.hp_max
+            # HP & AC (mit Fallback auf Standardwerte)
+            hp_match = re.search(r'hit point maximum\s*(\d+)', full_text.lower())
+            hero.hp_max = int(hp_match.group(1)) if hp_match else 10
+            hero.hp_current = hero.hp_max
             
-            ac_match = re.search(r'(?:armor class|ac)\s*(\d+)', full_text.lower())
-            if ac_match:
-                hero.ac = int(ac_match.group(1))
+            ac_match = re.search(r'armor class\s*(\d+)', full_text.lower())
+            hero.ac = int(ac_match.group(1)) if ac_match else 10
 
-            # 4. UI AKTUALISIEREN
+            # UI AKTUALISIEREN
             name_input.set_value(hero.name)
-            hp_input.set_value(getattr(hero, 'hp_current', 10))
-            if 'ac_label' in globals(): ac_label.set_text(str(hero.ac))
-            
+            hp_input.set_value(hero.hp_current)
+            ac_display.set_text(str(hero.ac))
             for stat, val in hero.stats.items():
                 if stat in ui_elements['inputs']:
                     ui_elements['inputs'][stat].set_value(val)
             
-            ui.notify(f'Daten für {hero.name} übernommen!', color='positive')
+            ui.notify(f'Daten für {hero.name} geladen!', color='positive')
 
         except Exception as ex:
             ui.notify(f'Import-Fehler: {ex}', color='negative')
@@ -104,7 +97,7 @@ def main_page():
     # --- UI ---
     ui.query('.q-page').classes('bg-slate-50')
     with ui.column().classes('w-full items-center q-pa-md max-w-2xl mx-auto'):
-        ui.label('🐺 Wolperting v3.2').classes('text-h3 text-primary font-bold')
+        ui.label('🐺 Wolperting v3.3').classes('text-h3 text-primary font-bold')
 
         with ui.card().classes('w-full q-pa-md shadow-md border-l-4 border-primary q-mb-md'):
             ui.upload(on_upload=handle_upload, label='Bogen importieren').classes('w-full')
@@ -115,11 +108,11 @@ def main_page():
             
             with ui.row().classes('w-full justify-around q-mt-md'):
                 global hp_input
-                hp_input = ui.number(label="HP", value=getattr(hero, 'hp_current', 10)).classes('w-32')
+                hp_input = ui.number(label="HP", value=hero.hp_current).classes('w-32')
                 with ui.column().classes('items-center'):
                     ui.label('AC').classes('text-xs uppercase')
-                    global ac_label
-                    ac_label = ui.label(str(getattr(hero, 'ac', 10))).classes('text-h4 font-bold')
+                    global ac_display
+                    ac_display = ui.label(str(hero.ac)).classes('text-h4 font-bold')
 
         ui.label('Attribute').classes('text-h5 q-mt-lg text-primary self-start')
         grid = ui.grid(columns=2).classes('w-full q-mt-sm')
