@@ -27,34 +27,35 @@ def main_page():
     hero = load_hero()
 
     # Die Funktion muss 'e' als UploadEventArguments verarbeiten
-    async def handle_upload(e: events.UploadEventArguments):
-        # Der richtige Zugriff auf den Dateinamen ist e.name (bei neueren Versionen) 
-        # oder wir nehmen den Namen direkt aus dem Content-Stream
-        file_name = e.name
-        pdf_path = os.path.join(DATA_DIR, file_name)
-        
-        with open(pdf_path, 'wb') as f:
-            # e.content ist ein Stream, den wir lesen müssen
-            f.write(e.content.read())
-        
+        async def handle_upload(e: events.UploadEventArguments):
+        # FIX: Zugriff auf den Namen über e.content.name oder direkt e.name, 
+        # aber wir gehen auf Nummer sicher:
         try:
-            with pdfplumber.open(pdf_path) as pdf:
+            file_name = getattr(e, 'name', 'unnamed_file.pdf')
+            pdf_path = os.path.join(DATA_DIR, file_name)
+            
+            # Den Inhalt aus dem Upload-Event lesen
+            content = e.content.read()
+            
+            with open(pdf_path, 'wb') as f:
+                f.write(content)
+            
+            # PDF Text extrahieren
+            import io
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
                 full_text = ""
                 for page in pdf.pages:
                     full_text += page.extract_text() or ""
                 
-                # Wir geben den Text im Portainer-Log aus
                 print(f"--- PDF INHALT VON {file_name} ---")
                 print(full_text)
                 print("--- ENDE ---")
                 
-                ui.notify(f'PDF "{file_name}" eingelesen!', color='positive')
-                
-                # Test-Logik: Wenn "Stärke" im Text vorkommt, versuchen wir eine Zahl zu finden
-                # (Das bauen wir im nächsten Schritt richtig aus)
+                ui.notify(f'PDF "{file_name}" wurde im Log ausgegeben!', color='positive')
         except Exception as ex:
-            ui.notify(f'Fehler: {ex}', color='negative')
-            print(f"Fehler beim PDF-Lesen: {ex}")
+            ui.notify(f'Fehler beim Upload: {ex}', color='negative')
+            print(f"Upload Fehler: {ex}")
+
 
     # --- UI ---
     ui.query('.q-page').classes('bg-slate-100')
