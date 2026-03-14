@@ -28,32 +28,30 @@ def save_hero(char):
 def main_page():
     hero = load_hero()
 
-    async def handle_upload(e: events.UploadEventArguments):
+        async def handle_upload(e: events.UploadEventArguments):
         try:
-            # 1. Den Namen finden (egal wo er steckt)
-            file_name = "unbekannt.pdf"
-            if hasattr(e, 'name'): file_name = e.name
-            elif hasattr(e, 'file') and hasattr(e.file, 'name'): file_name = e.file.name
+            # 1. Name finden
+            file_name = getattr(e, 'name', 'charakter.pdf')
             
-            # 2. Den Inhalt finden und lesen
-            content_bytes = None
-            if hasattr(e, 'content'):
+            # 2. Den Inhalt lesen (mit await, damit die coroutine fertig wird!)
+            # Wir probieren beide gängigen Wege von NiceGUI
+            if hasattr(e.content, 'read'):
                 content_bytes = e.content.read()
-            elif hasattr(e, 'file') and hasattr(e.file, 'read'):
-                content_bytes = e.file.read()
-            
-            if not content_bytes:
-                ui.notify('Inhalt konnte nicht extrahiert werden!', color='negative')
+                # Falls es ein async-objekt ist, müssen wir es abwarten
+                if hasattr(content_bytes, '__await__'):
+                    content_bytes = await content_bytes
+            else:
+                ui.notify('Konnte Dateistream nicht finden', color='negative')
                 return
 
-            # 3. PDF verarbeiten (direkt aus dem Speicher)
+            # 3. PDF verarbeiten
             with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
                 full_text = ""
                 for page in pdf.pages:
                     t = page.extract_text()
                     if t: full_text += t + "\n"
                 
-                # Das ist wichtig für uns:
+                # Das landet jetzt endlich im Portainer-Log!
                 print(f"\n--- PDF GELESEN: {file_name} ---")
                 print(full_text)
                 print("--- ENDE ---\n")
@@ -62,7 +60,7 @@ def main_page():
                 
         except Exception as ex:
             ui.notify(f'Fehler: {str(ex)}', color='negative')
-            print(f"DEBUG: e hat folgende Attribute: {dir(e)}")
+            print(f"DEBUG Fehler: {ex}")
 
 
     # --- UI LAYOUT ---
