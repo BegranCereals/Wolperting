@@ -30,29 +30,37 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # Name sicher auslesen
-            file_name = getattr(e, 'name', 'unnamed_file.pdf')
-            content = e.content.read()
+            # Wir nutzen direkt e.name und e.content (als Stream)
+            file_name = e.name
             
-            # Datei im Container speichern
-            pdf_path = os.path.join(DATA_DIR, file_name)
-            with open(pdf_path, 'wb') as f:
-                f.write(content)
+            # Wir lesen die Daten direkt aus dem Stream in einen Speicherpuffer
+            # Das funktioniert bei fast allen NiceGUI/FastAPI Versionen
+            content_bytes = e.content.read()
             
+            if not content_bytes:
+                ui.notify('Datei ist leer oder konnte nicht gelesen werden.', color='negative')
+                return
+
             # PDF Text extrahieren
-            with pdfplumber.open(io.BytesIO(content)) as pdf:
+            with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
                 full_text = ""
                 for page in pdf.pages:
-                    full_text += page.extract_text() or ""
+                    page_text = page.extract_text()
+                    if page_text:
+                        full_text += page_text + "\n"
                 
-                print(f"--- PDF INHALT VON {file_name} ---")
+                # Das ist der Moment der Wahrheit im Portainer-Log:
+                print(f"\n--- GEFUNDENER TEXT IN {file_name} ---")
                 print(full_text)
-                print("--- ENDE ---")
+                print("--- ENDE ---\n")
                 
-                ui.notify(f'PDF "{file_name}" analysiert! Siehe Log.', color='positive')
+                ui.notify(f'Erfolg! Text aus "{file_name}" extrahiert.', color='positive')
+                
         except Exception as ex:
-            ui.notify(f'Fehler beim Upload: {ex}', color='negative')
-            print(f"Upload Fehler: {ex}")
+            # Wenn es immer noch kracht, wollen wir genau wissen warum
+            ui.notify(f'Fehler: {str(ex)}', color='negative')
+            print(f"DEBUG-INFO: Typ von e: {type(e)}, Fehler: {ex}")
+
 
     # --- UI LAYOUT ---
     ui.query('.q-page').classes('bg-slate-100')
