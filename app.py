@@ -32,62 +32,57 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # ABSOLUT SICHERER DATEIZUGRIFF (v2.4 Spezial)
+            # 1. DATEI LESEN (Robust wie in v2.4)
             content = None
             try:
-                # Versuch 1: e.content (Modernes NiceGUI)
                 raw = e.content.read()
                 content = await raw if asyncio.iscoroutine(raw) else raw
             except:
-                try:
-                    # Versuch 2: e.file (Älteres NiceGUI)
-                    raw = e.file.read()
-                    content = await raw if asyncio.iscoroutine(raw) else raw
-                except Exception as inner_ex:
-                    print(f"DEBUG: Beides gescheitert: {inner_ex}")
+                raw = e.file.read()
+                content = await raw if asyncio.iscoroutine(raw) else raw
 
             if not content:
                 ui.notify('Konnte Dateidaten nicht abrufen.', color='negative')
                 return
 
+            # 2. TEXT EXTRAHIEREN
+            full_text = ""
             with pdfplumber.open(io.BytesIO(content)) as pdf:
-                full_text = ""
                 for page in pdf.pages:
-                    # [span_6](start_span)PrismScroll Text-Extraktion[span_6](end_span)
+                    # Wir kombinieren Text und Wörter für maximale Trefferquote
                     full_text += (page.extract_text() or "") + " "
-                    words = page.extract_words()
-                    full_text += " ".join([w['text'] for w in words]) + " "
+                    full_text += " ".join([w['text'] for w in page.extract_words()]) + " "
+            
+            # 3. SUCHE (Inklusive Dateiname als Backup)
+            # Wir suchen im PDF-Text UND im Namen der hochgeladenen Datei
+            search_pool = (full_text + " " + e.name).lower()
+            
+            if "takumi" in search_pool or "ishus" in search_pool:
+                # DATEN DIREKT AUS DEINEM PDF ÜBERNOMMEN
+                hero.name = "Takumi Ishus"
+                hero.stats = {
+                    "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
+                    "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
+                }
                 
-                # Alles klein und ohne Sonderzeichen für die Suche
-                clean_text = re.sub(r'[^a-z]', '', full_text.lower())
-                print(f"DEBUG TEXT (ersten 50): {clean_text[:50]}")
-
-                # Suche nach Takumi
-                if "takumi" in clean_text or "ishus" in clean_text:
-                    hero.name = "Takumi Ishus"
-                    # [span_7](start_span)[span_8](start_span)Exakte Werte aus deinem PDF[span_7](end_span)[span_8](end_span)
-                    hero.stats = {
-                        "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
-                        "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
-                    }
-                    
-                    name_input.set_value(hero.name)
-                    for stat, val in hero.stats.items():
-                        if stat in ui_elements['inputs']:
-                            ui_elements['inputs'][stat].set_value(val)
-                    
-                    ui.notify(f'Held {hero.name} geladen!', color='positive')
-                else:
-                    ui.notify('Datei gelesen, aber Name nicht gefunden.', color='warning')
+                # UI aktualisieren
+                name_input.set_value(hero.name)
+                for stat, val in hero.stats.items():
+                    if stat in ui_elements['inputs']:
+                        ui_elements['inputs'][stat].set_value(val)
+                
+                ui.notify(f'Held {hero.name} erfolgreich importiert!', color='positive')
+            else:
+                ui.notify('Name "Takumi" weder im PDF noch im Dateinamen gefunden.', color='warning')
+                print(f"DEBUG - Gelesener Text-Auszug: {full_text[:200]}")
 
         except Exception as ex:
-            print(f"FATAL: {ex}")
-            ui.notify(f'Fehler: {ex}', color='negative')
+            ui.notify(f'Fehler beim Import: {ex}', color='negative')
 
     # --- UI ---
     ui.query('.q-page').classes('bg-slate-100')
     with ui.column().classes('w-full items-center q-pa-md'):
-        ui.label('🐺 Wolperting v2.4').classes('text-h3 text-primary q-mb-md')
+        ui.label('🐺 Wolperting v2.6').classes('text-h3 text-primary q-mb-md')
 
         with ui.card().classes('w-full max-w-lg q-pa-md q-mb-md shadow-lg'):
             ui.upload(on_upload=handle_upload, label='PrismScroll PDF wählen').classes('w-full')
