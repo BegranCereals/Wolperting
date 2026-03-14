@@ -30,36 +30,39 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # Wir nutzen direkt e.name und e.content (als Stream)
-            file_name = e.name
+            # 1. Den Namen finden (egal wo er steckt)
+            file_name = "unbekannt.pdf"
+            if hasattr(e, 'name'): file_name = e.name
+            elif hasattr(e, 'file') and hasattr(e.file, 'name'): file_name = e.file.name
             
-            # Wir lesen die Daten direkt aus dem Stream in einen Speicherpuffer
-            # Das funktioniert bei fast allen NiceGUI/FastAPI Versionen
-            content_bytes = e.content.read()
+            # 2. Den Inhalt finden und lesen
+            content_bytes = None
+            if hasattr(e, 'content'):
+                content_bytes = e.content.read()
+            elif hasattr(e, 'file') and hasattr(e.file, 'read'):
+                content_bytes = e.file.read()
             
             if not content_bytes:
-                ui.notify('Datei ist leer oder konnte nicht gelesen werden.', color='negative')
+                ui.notify('Inhalt konnte nicht extrahiert werden!', color='negative')
                 return
 
-            # PDF Text extrahieren
+            # 3. PDF verarbeiten (direkt aus dem Speicher)
             with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
                 full_text = ""
                 for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        full_text += page_text + "\n"
+                    t = page.extract_text()
+                    if t: full_text += t + "\n"
                 
-                # Das ist der Moment der Wahrheit im Portainer-Log:
-                print(f"\n--- GEFUNDENER TEXT IN {file_name} ---")
+                # Das ist wichtig für uns:
+                print(f"\n--- PDF GELESEN: {file_name} ---")
                 print(full_text)
                 print("--- ENDE ---\n")
                 
-                ui.notify(f'Erfolg! Text aus "{file_name}" extrahiert.', color='positive')
+                ui.notify(f'Erfolg! {file_name} analysiert.', color='positive')
                 
         except Exception as ex:
-            # Wenn es immer noch kracht, wollen wir genau wissen warum
             ui.notify(f'Fehler: {str(ex)}', color='negative')
-            print(f"DEBUG-INFO: Typ von e: {type(e)}, Fehler: {ex}")
+            print(f"DEBUG: e hat folgende Attribute: {dir(e)}")
 
 
     # --- UI LAYOUT ---
