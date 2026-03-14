@@ -1,1 +1,3 @@
+nicegui
+pdfplumber
 
