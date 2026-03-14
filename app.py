@@ -30,37 +30,26 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # 1. Name finden
-            file_name = getattr(e, 'name', 'charakter.pdf')
+            # Wir ignorieren e.content und e.name und nehmen e.__dict__
+            # Das ist die "Notlösung", die ALLES ausliest
+            data = e.__dict__
+            print(f"DEBUG: Was ist in e drin? {data.keys()}")
             
-            # 2. Den Inhalt lesen (mit await, damit die coroutine fertig wird!)
-            # Wir probieren beide gängigen Wege von NiceGUI
-            if hasattr(e.content, 'read'):
-                content_bytes = e.content.read()
-                # Falls es ein async-objekt ist, müssen wir es abwarten
+            # Wir versuchen den direkten Stream-Zugriff
+            content = getattr(e, 'content', None)
+            if content:
+                content_bytes = content.read()
                 if hasattr(content_bytes, '__await__'):
                     content_bytes = await content_bytes
+                
+                with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
+                    text = "\n".join([p.extract_text() or "" for p in pdf.pages])
+                    print(text)
+                    ui.notify('PDF gelesen!')
             else:
-                ui.notify('Konnte Dateistream nicht finden', color='negative')
-                return
-
-            # 3. PDF verarbeiten
-            with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
-                full_text = ""
-                for page in pdf.pages:
-                    t = page.extract_text()
-                    if t: full_text += t + "\n"
-                
-                # Das landet jetzt endlich im Portainer-Log!
-                print(f"\n--- PDF GELESEN: {file_name} ---")
-                print(full_text)
-                print("--- ENDE ---\n")
-                
-                ui.notify(f'Erfolg! {file_name} analysiert.', color='positive')
-                
+                ui.notify('Attribut-Fehler: e.content nicht gefunden', color='negative')
         except Exception as ex:
-            ui.notify(f'Fehler: {str(ex)}', color='negative')
-            print(f"DEBUG Fehler: {ex}")
+            ui.notify(f'Kritischer Fehler: {ex}')
 
 
     # --- UI LAYOUT ---
