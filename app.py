@@ -20,51 +20,57 @@ def load_hero():
 def save_hero(char):
     with open(SAVE_FILE, 'w') as f:
         json.dump(char.to_dict(), f, indent=4)
-    ui.notify(f'Held {char.name} gesichert!')
+    ui.notify(f'Held {char.name} gesichert!', color='positive')
 
-# Wir definieren die Seite jetzt explizit
 @ui.page('/')
 def main_page():
     hero = load_hero()
 
+    # Die Funktion muss 'e' als UploadEventArguments verarbeiten
     async def handle_upload(e: events.UploadEventArguments):
-        # Datei sicher speichern
-        pdf_path = os.path.join(DATA_DIR, e.name)
+        # Der richtige Zugriff auf den Dateinamen ist e.name (bei neueren Versionen) 
+        # oder wir nehmen den Namen direkt aus dem Content-Stream
+        file_name = e.name
+        pdf_path = os.path.join(DATA_DIR, file_name)
+        
         with open(pdf_path, 'wb') as f:
+            # e.content ist ein Stream, den wir lesen müssen
             f.write(e.content.read())
         
-        # PDF Text extrahieren
         try:
             with pdfplumber.open(pdf_path) as pdf:
-                text = ""
+                full_text = ""
                 for page in pdf.pages:
-                    text += page.extract_text() or ""
+                    full_text += page.extract_text() or ""
                 
-                # Zeige die ersten Zeichen im Log (Portainer) und als Info
-                print(f"EXTRAKTIERTER TEXT:\n{text[:500]}")
-                ui.notify('PDF erfolgreich analysiert!', color='positive')
+                # Wir geben den Text im Portainer-Log aus
+                print(f"--- PDF INHALT VON {file_name} ---")
+                print(full_text)
+                print("--- ENDE ---")
+                
+                ui.notify(f'PDF "{file_name}" eingelesen!', color='positive')
+                
+                # Test-Logik: Wenn "Stärke" im Text vorkommt, versuchen wir eine Zahl zu finden
+                # (Das bauen wir im nächsten Schritt richtig aus)
         except Exception as ex:
-            ui.notify(f'Fehler beim Lesen: {ex}', color='negative')
+            ui.notify(f'Fehler: {ex}', color='negative')
+            print(f"Fehler beim PDF-Lesen: {ex}")
 
-    # --- UI LAYOUT ---
+    # --- UI ---
     ui.query('.q-page').classes('bg-slate-100')
 
     with ui.column().classes('w-full items-center q-pa-md'):
-        ui.label('🐺 Wolperting v1.2').classes('text-h3 text-primary q-mb-md')
+        ui.label('🐺 Wolperting v1.3').classes('text-h3 text-primary q-mb-md')
 
-        # Upload Bereich
         with ui.card().classes('w-full max-w-lg q-pa-md q-mb-md'):
-            ui.label('PDF Import').classes('text-h6')
-            # Hier nutzen wir das Event-Argument korrekt
-            ui.upload(on_upload=handle_upload, label='Bogen hochladen').classes('w-full')
+            ui.label('PDF Charakter-Import').classes('text-h6')
+            ui.upload(on_upload=handle_upload, label='Bogen wählen').classes('w-full')
 
-        # Charakter Karte
         with ui.card().classes('w-full max-w-lg q-pa-md'):
             ui.input('Name', value=hero.name, 
                      on_change=lambda e: setattr(hero, 'name', e.value)).classes('w-full')
             ui.button('SPEICHERN', on_click=lambda: save_hero(hero)).classes('w-full q-mt-sm')
 
-        # Stats
         ui.label('Attribute').classes('text-h5 q-mt-md')
         with ui.grid(columns=1).classes('w-full max-w-lg'):
             for stat in hero.stats:
@@ -79,5 +85,4 @@ def main_page():
                         
                         ui.number(value=hero.stats[stat], format='%.0f', on_change=update_stat).classes('w-20')
 
-# Start-Konfiguration
 ui.run(host='0.0.0.0', port=5005, title='Wolperting', reload=False)
