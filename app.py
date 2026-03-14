@@ -2,6 +2,7 @@ import os
 import json
 import pdfplumber
 import io
+import re
 from nicegui import ui, events
 from logic import Character
 
@@ -26,63 +27,74 @@ def save_hero(char):
 @ui.page('/')
 def main_page():
     hero = load_hero()
-    # Speicher für UI-Elemente, damit wir sie per Code aktualisieren können
     ui_elements = {'inputs': {}, 'labels': {}}
 
-    async def handle_upload(e):
+    async def handle_upload(e: events.UploadEventArguments):
         try:
-            content_source = getattr(e, 'content', None) or getattr(e, 'file', None)
-            if not content_source:
+            # 1. Datei einlesen
+            content = e.content.read()
+            if hasattr(content, '__await__'):
+                content = await content
+            
+            # Puffer erstellen
+            pdf_buffer = io.BytesIO(content)
+            full_text = ""
+
+            # 2. PDF mit pdfplumber öffnen
+            with pdfplumber.open(pdf_buffer) as pdf:
+                print(f"DEBUG: PDF geöffnet. Seitenanzahl: {len(pdf.pages)}")
+                
+                for i, page in enumerate(pdf.pages):
+                    # Wir probieren erst die normale Extraktion
+                    text = page.extract_text()
+                    
+                    # Falls das nicht klappt, probieren wir die Tabellen-Extraktion
+                    if not text:
+                        print(f"Seite {i+1}: Normale Extraktion leer, versuche Alternative...")
+                        words = page.extract_words()
+                        text = " ".join([w['text'] for w in words])
+                    
+                    if text:
+                        full_text += text + "\n"
+
+            # 3. Ergebnis prüfen
+            if not full_text.strip():
+                print("DEBUG: Wirklich gar kein Text gefunden.")
+                ui.notify('Konnte keinen Text lesen. Ist das PDF ein Bild/Scan?', color='negative')
                 return
 
-            raw_data = content_source.read()
-            if hasattr(raw_data, '__await__'):
-                raw_data = await raw_data
+            # Logge die ersten 200 Zeichen zur Kontrolle
+            print(f"DEBUG: Gefundener Text-Anfang:\n{full_text[:300]}")
 
-            with pdfplumber.open(io.BytesIO(raw_data)) as pdf:
-                full_text = ""
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        full_text += page_text + "\n"
+            # 4. Takumi-Check (Case Insensitive)
+            if re.search(r"Takumi", full_text, re.IGNORECASE):
+                hero.name = "Takumi Ishus"
+                hero.stats = {
+                    "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
+                    "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
+                }
                 
-                if full_text:
-                    # Wir suchen flexibler nach "Takumi"
-                    if "Takumi" in full_text:
-                        # 1. Daten im Hintergrund-Objekt (hero) setzen
-                        hero.name = "Takumi Ishus"
-                        hero.stats = {
-                            "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
-                            "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
-                        }
-                        
-                        # 2. UI-Elemente direkt aktualisieren (ohne Seiten-Reload!)
-                        name_input.set_value(hero.name)
-                        for stat, value in hero.stats.items():
-                            if stat in ui_elements['inputs']:
-                                ui_elements['inputs'][stat].set_value(value)
-                            if stat in ui_elements['labels']:
-                                mod = (value - 10) // 2
-                                ui_elements['labels'][stat].set_text(f'Mod: {mod}')
-                        
-                        ui.notify('Takumi Ishus erfolgreich importiert!', color='positive')
-                    else:
-                        ui.notify('PDF gelesen, aber kein "Takumi" gefunden.', color='warning')
-                        print(f"DEBUG - Text-Auszug:\n{full_text[:500]}")
-                else:
-                    ui.notify('Konnte keinen Text aus dem PDF extrahieren.', color='negative')
+                # UI Update
+                name_input.set_value(hero.name)
+                for stat, val in hero.stats.items():
+                    if stat in ui_elements['inputs']:
+                        ui_elements['inputs'][stat].set_value(val)
+                
+                ui.notify(f'Held {hero.name} erkannt und importiert!', color='positive')
+            else:
+                ui.notify('PDF gelesen, aber kein bekannter Held gefunden.', color='warning')
 
         except Exception as ex:
-            print(f"Upload Fehler: {ex}")
-            ui.notify('Fehler beim Verarbeiten des PDFs')
+            print(f"KRITISCHER FEHLER: {ex}")
+            ui.notify(f'Fehler: {ex}', color='negative')
 
-    # --- UI LAYOUT ---
+    # --- UI ---
     ui.query('.q-page').classes('bg-slate-100')
     with ui.column().classes('w-full items-center q-pa-md'):
-        ui.label('🐺 Wolperting v1.9').classes('text-h3 text-primary q-mb-md')
+        ui.label('🐺 Wolperting v2.0').classes('text-h3 text-primary q-mb-md')
 
         with ui.card().classes('w-full max-w-lg q-pa-md q-mb-md shadow-lg'):
-            ui.upload(on_upload=handle_upload, label='Charakter-Bogen (PDF)').classes('w-full')
+            ui.upload(on_upload=handle_upload, label='Bogen hochladen (PDF)').classes('w-full')
 
         with ui.card().classes('w-full max-w-lg q-pa-md shadow-lg'):
             global name_input
@@ -96,16 +108,16 @@ def main_page():
                 with ui.row().classes('w-full items-center justify-between'):
                     ui.label(stat).classes('text-bold text-lg')
                     
-                    # Modifikator-Label speichern
-                    mod_val = (hero.stats[stat] - 10) // 2
-                    ml = ui.label(f'Mod: {mod_val}').classes('text-blue-600 font-mono')
+                    # Modifikator-Label
+                    def calc_mod(val): return (val - 10) // 2
+                    ml = ui.label(f'Mod: {calc_mod(hero.stats[stat])}').classes('text-blue-600 font-mono')
+                    ui_elements['labels'] = ui_elements.get('labels', {})
                     ui_elements['labels'][stat] = ml
                     
-                    # Number-Input speichern
                     def update_val(e, s=stat, label=ml):
-                        new_val = int(e.value or 10)
-                        hero.stats[s] = new_val
-                        label.set_text(f'Mod: {(new_val - 10) // 2}')
+                        val = int(e.value or 10)
+                        hero.stats[s] = val
+                        label.set_text(f'Mod: {calc_mod(val)}')
 
                     ni = ui.number(value=hero.stats[stat], on_change=update_val).classes('w-20')
                     ui_elements['inputs'][stat] = ni
