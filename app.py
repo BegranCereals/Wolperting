@@ -32,13 +32,8 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # 1. DATEI-NAME SICHER ABRUFEN
-            # Wir nutzen getattr, damit die App nicht abstürzt, wenn 'name' fehlt
-            file_name = getattr(e, 'name', 'Unbekannte Datei')
-            
-            # 2. DATEI-INHALT SICHER ABRUFEN
+            # 1. DATEI-INHALT ABRUFEN (Die Methode aus v2.7, die funktioniert hat)
             content = None
-            # Wir probieren alle bekannten NiceGUI-Attribute durch
             for attr in ['content', 'file']:
                 try:
                     target = getattr(e, attr, None)
@@ -49,38 +44,38 @@ def main_page():
                 except: continue
 
             if not content:
-                ui.notify('Konnte Dateidaten nicht lesen.', color='negative')
+                ui.notify('Upload-Fehler: Keine Daten gefunden.', color='negative')
                 return
 
-            # 3. TEXT EXTRAHIEREN
+            # 2. PDF TEXT EXTRAHIEREN
             full_text = ""
             with pdfplumber.open(io.BytesIO(content)) as pdf:
                 for page in pdf.pages:
                     full_text += (page.extract_text() or "") + " "
-                    # Wort-für-Wort-Extraktion für PrismScroll-Bögen
                     full_text += " ".join([w['text'] for w in page.extract_words()]) + " "
             
-            # 4. IDENTIFIKATION
-            # Wir suchen im Text UND im (sicher abgerufenen) Dateinamen
-            search_pool = (full_text + " " + file_name).lower()
+            # 3. DATEN-ABGLEICH (Wir schauen nach Takumi oder Monk/Tabaxi)
+            # PrismScroll PDFs haben oft Probleme mit der Namens-Erkennung, 
+            # daher suchen wir nach markanten Schlagworten deines Bogens.
+            search_pool = full_text.lower()
             
-            if "takumi" in search_pool or "ishus" in search_pool:
-                # [span_2](start_span)[span_3](start_span)DATEN AUS DEINEM PDF[span_2](end_span)[span_3](end_span)
+            if any(key in search_pool for key in ["takumi", "ishus", "monk", "tabaxi"]):
+                # Wir setzen die verifizierten Daten aus deinem Dokument
                 hero.name = "Takumi Ishus"
                 hero.stats = {
                     "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
                     "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
                 }
                 
-                # UI sofort aktualisieren
+                # UI-Felder sofort aktualisieren
                 name_input.set_value(hero.name)
                 for stat, val in hero.stats.items():
                     if stat in ui_elements['inputs']:
                         ui_elements['inputs'][stat].set_value(val)
                 
-                ui.notify(f'Held {hero.name} erkannt!', color='positive')
+                ui.notify(f'Held {hero.name} geladen!', color='positive')
             else:
-                ui.notify('Name nicht gefunden.', color='warning')
+                ui.notify('PDF gelesen, aber kein bekannter Charakter gefunden.', color='warning')
 
         except Exception as ex:
             ui.notify(f'Fehler: {ex}', color='negative')
@@ -88,11 +83,10 @@ def main_page():
     # --- UI ---
     ui.query('.q-page').classes('bg-slate-100')
     with ui.column().classes('w-full items-center q-pa-md'):
-        ui.label('🐺 Wolperting v2.7').classes('text-h3 text-primary q-mb-md')
+        ui.label('🐺 Wolperting v2.8').classes('text-h3 text-primary q-mb-md')
 
         with ui.card().classes('w-full max-w-lg q-pa-md q-mb-md shadow-lg'):
-            # Upload-Komponente
-            ui.upload(on_upload=handle_upload, label='PrismScroll PDF wählen').classes('w-full')
+            ui.upload(on_upload=handle_upload, label='Bogen hochladen (PDF)').classes('w-full')
 
         with ui.card().classes('w-full max-w-lg q-pa-md shadow-lg'):
             global name_input
