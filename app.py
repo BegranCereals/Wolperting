@@ -1,6 +1,8 @@
 import os
 import json
+import pdfplumber
 import io
+import re
 import asyncio
 from nicegui import ui, events
 from logic import Character
@@ -30,86 +32,76 @@ def main_page():
 
     async def handle_upload(e: events.UploadEventArguments):
         try:
-            # Import-Logik (v2.9 Brute Force)
-            hero.name = "Takumi Ishus"
-            hero.class_name = "Monk (Way of Mercy)"
-            hero.level = 3
-            hero.race = "Tabaxi"
+            # 1. Datei einlesen
+            content = None
+            for attr in ['content', 'file']:
+                target = getattr(e, attr, None)
+                if target:
+                    raw = target.read()
+                    content = await raw if asyncio.iscoroutine(raw) else raw
+                    if content: break
+
+            if not content:
+                ui.notify('Keine Daten empfangen', color='negative')
+                return
+
+            # 2. PDF Text extrahieren
+            full_text = ""
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                for page in pdf.pages:
+                    full_text += (page.extract_text() or "") + "\n"
             
-            # [span_2](start_span)[span_3](start_span)Stats aus dem PDF[span_2](end_span)[span_3](end_span)
-            hero.hp_max = 27
-            hero.hp_current = 27
-            hero.ac = 17
-            hero.initiative = 4 # Dexterity Modifier
+            # 3. Dynamische Erkennung (statt Brute Force)
+            # Wir suchen die erste Zeile für den Namen
+            lines = [l.strip() for l in full_text.split('\n') if l.strip()]
+            new_name = lines[0] if lines else "Unbekannter Held"
             
-            hero.stats = {
-                "Stärke": 11, "Geschicklichkeit": 18, "Konstitution": 17,
-                "Intelligenz": 10, "Weisheit": 12, "Charisma": 9
-            }
+            # Suche nach typischen Klassen
+            classes = ["Monk", "Paladin", "Ranger", "Wizard", "Fighter", "Rogue", "Cleric", "Bard"]
+            found_class = "Abenteurer"
+            for c in classes:
+                if c.lower() in full_text.lower():
+                    found_class = c
+                    break
+
+            # 4. Charakter aktualisieren
+            hero.name = new_name
+            hero.class_name = found_class
             
-            # UI Refresh
+            # Versuche, HP zu finden (Suche nach "Hit Point Maximum")
+            hp_match = re.search(r'Hit Point Maximum\s+(\d+)', full_text)
+            if hp_match:
+                hero.hp_max = int(hp_match.group(1))
+                hero.hp_current = hero.hp_max
+
+            # UI Update
             name_input.set_value(hero.name)
-            info_label.set_text(f"{hero.race} | {hero.class_name} | Level {hero.level}")
-            hp_input.set_value(hero.hp_current)
-            ac_label.set_text(f"AC: {hero.ac}")
+            info_label.set_text(f"Klasse: {hero.class_name}")
+            hp_input.set_value(getattr(hero, 'hp_current', 10))
+            hp_input.props(f'label="Max: {getattr(hero, "hp_max", 10)}"')
             
-            for stat, val in hero.stats.items():
-                if stat in ui_elements['inputs']:
-                    ui_elements['inputs'][stat].set_value(val)
-            
-            ui.notify('Takumi Ishus vollständig geladen!', color='positive')
+            ui.notify(f'Held {hero.name} geladen!', color='positive')
 
         except Exception as ex:
-            ui.notify(f'Fehler: {ex}', color='negative')
+            ui.notify(f'Fehler beim Import: {ex}', color='negative')
 
-    # --- UI DESIGN ---
+    # --- UI ---
     ui.query('.q-page').classes('bg-slate-50')
-    
     with ui.column().classes('w-full items-center q-pa-md max-w-2xl mx-auto'):
-        ui.label('🐺 Wolperting v3.0').classes('text-h3 text-primary font-bold q-mb-md')
+        ui.label('🐺 Wolperting v3.1').classes('text-h3 text-primary font-bold')
 
-        # Bereich 1: Upload
         with ui.card().classes('w-full q-pa-md shadow-md border-l-4 border-primary'):
-            ui.upload(on_upload=handle_upload, label='Charakter-PDF importieren').classes('w-full')
+            ui.upload(on_upload=handle_upload, label='Neuen PDF-Bogen testen').classes('w-full')
 
-        # Bereich 2: Kopfdaten
-        with ui.card().classes('w-full q-pa-md q-mt-md shadow-lg bg-white'):
-            with ui.row().classes('w-full items-center justify-between'):
-                with ui.column():
-                    global name_input, info_label
-                    name_input = ui.input('Held', value=hero.name, 
-                                          on_change=lambda e: setattr(hero, 'name', e.value)).classes('text-xl font-bold')
-                    info_label = ui.label(f"{getattr(hero, 'race', '---')} | {getattr(hero, 'class_name', '---')}").classes('text-grey-6')
-                
-                # Rüstungsklasse Badge
-                with ui.column().classes('items-center bg-blue-50 q-pa-sm rounded-lg border border-blue-200'):
-                    ui.label('Rüstung').classes('text-xs uppercase text-blue-500')
-                    global ac_label
-                    ac_label = ui.label(f"{getattr(hero, 'ac', 10)}").classes('text-h4 font-bold text-blue-900')
+        with ui.card().classes('w-full q-pa-md q-mt-md shadow-lg'):
+            global name_input, info_label
+            name_input = ui.input('Name', value=hero.name).classes('text-xl font-bold w-full')
+            info_label = ui.label(f"Klasse: {getattr(hero, 'class_name', '---')}").classes('text-grey-6')
 
-        # Bereich 3: HP & Kampf
-        with ui.row().classes('w-full q-mt-md gap-4'):
-            with ui.card().classes('col q-pa-md shadow-md flex-1'):
-                ui.label('Trefferpunkte').classes('text-xs uppercase text-red-500 font-bold')
-                global hp_input
-                hp_input = ui.number(label=f"Max: {getattr(hero, 'hp_max', 27)}", 
-                                     value=getattr(hero, 'hp_current', 27)).classes('text-h5')
-            
-            with ui.card().classes('col q-pa-md shadow-md flex-1 items-center justify-center'):
-                ui.label('Initiative').classes('text-xs uppercase text-orange-500 font-bold')
-                ui.label(f"+{getattr(hero, 'initiative', 4)}").classes('text-h4 text-orange-900')
+        with ui.card().classes('w-full q-pa-md q-mt-md shadow-md'):
+            global hp_input
+            hp_input = ui.number(label="Trefferpunkte", value=getattr(hero, 'hp_current', 10)).classes('w-full')
 
-        # Bereich 4: Attribute
-        ui.label('Attribute').classes('text-h5 q-mt-lg text-primary self-start')
-        grid = ui.grid(columns=2).classes('w-full q-mt-sm')
-        with grid:
-            for stat in hero.stats:
-                with ui.card().classes('q-pa-sm shadow-sm border border-gray-100'):
-                    ui.label(stat).classes('text-xs uppercase text-gray-500')
-                    ni = ui.number(value=hero.stats[stat], 
-                                   on_change=lambda e, s=stat: hero.stats.update({s: int(e.value or 10)})).classes('w-full')
-                    ui_elements['inputs'][stat] = ni
-
-        ui.button('ÄNDERUNGEN SPEICHERN', on_click=lambda: save_hero(hero)).classes('w-full q-mt-xl py-4 text-lg shadow-lg')
+        ui.button('SPEICHERN', on_click=lambda: save_hero(hero)).classes('w-full q-mt-md')
 
 ui.run(host='0.0.0.0', port=5005, title='Wolperting', reload=False)
