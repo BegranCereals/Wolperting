@@ -35,18 +35,29 @@ if page == "Charakter-Editor":
     col1, col2, col3 = st.columns(3)
     with col1:
         race_names = [r.name for r in ALL_RACES]
-        selected_race = st.selectbox("Rasse:", race_names)
-        chosen_race = ALL_RACES[race_names.index(selected_race)]
+        if race_names:
+            selected_race = st.selectbox("Rasse:", race_names)
+            chosen_race = ALL_RACES[race_names.index(selected_race)]
+        else:
+            st.error("Keine Rassen in der Datenbank gefunden!")
+            chosen_race = None
+
     with col2:
         chosen_subrace = None
-        if chosen_race.subraces:
+        if chosen_race and chosen_race.subraces:
             sub_names = [sub.name for sub in chosen_race.subraces]
             selected_sub = st.selectbox("Unterrasse:", sub_names)
             chosen_subrace = chosen_race.subraces[sub_names.index(selected_sub)]
+        else:
+            st.write("Keine Unterrasse verfügbar.")
+
     with col3:
         class_names = [c.name for c in ALL_CLASSES]
-        selected_class = st.selectbox("Klasse:", class_names)
-        chosen_class = ALL_CLASSES[class_names.index(selected_class)]
+        if class_names:
+            selected_class = st.selectbox("Klasse:", class_names)
+            chosen_class = ALL_CLASSES[class_names.index(selected_class)]
+        else:
+            chosen_class = None
 
     selected_bg = st.selectbox("Hintergrund:", [b.name for b in ALL_BACKGROUNDS])
     chosen_bg = ALL_BACKGROUNDS[[b.name for b in ALL_BACKGROUNDS].index(selected_bg)]
