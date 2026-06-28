@@ -14,6 +14,22 @@ acolyte = RPGBackground(
 )
 acolyte.skill_proficiencies = ["Insight", "Religion"]
 acolyte.languages = ["Two languages of your choice"]
+acolyte.suggested_traits = [
+    "I idolize a particular hero of my faith, and constantly refer to that person's deeds and example.",
+    "I see omens in every event and action. The gods are trying to speak to us, we just need to listen."
+]
+acolyte.suggested_ideals = [
+    "Faith. I trust that my deity will guide my actions. I have faith that if I work hard, things will go well.",
+    "Charity. I always try to help those in need, no matter what the personal cost."
+]
+acolyte.suggested_bonds = [
+    "I would die to recover an ancient relic of my faith that was lost long ago.",
+    "I owe my life to the priest who took me in when my parents died."
+]
+acolyte.suggested_flaws = [
+    "I judge others harshly, and myself even more harshly.",
+    "I am suspicious of strangers and expect the worst of them."
+]
 
 # 2. DER KRIMINELLE (Criminal) - Diebe, Schmuggler, Halsabschneider
 criminal = RPGBackground(
@@ -22,6 +38,22 @@ criminal = RPGBackground(
     feature_description="You have a reliable trustworthy contact who acts as your liaison to a network of other criminals."
 )
 criminal.skill_proficiencies = ["Deception", "Stealth"]
+criminal.suggested_traits = [
+    "I always have a plan for what to do when things go wrong.",
+    "The best way to get me to do something is to tell me I can't do it."
+]
+criminal.suggested_ideals = [
+    "Honor. I don't steal from others in the trade.",
+    "Freedom. Chains are meant to be broken, as are those who would forge them."
+]
+criminal.suggested_bonds = [
+    "I'm trying to pay off an old debt I owe to a generous benefactor.",
+    "A share of my profits goes to support my family."
+]
+criminal.suggested_flaws = [
+    "When I see something valuable, I can't think about anything but how to steal it.",
+    "An innocent person is in prison for a crime that I committed. I'm okay with that."
+]
 
 # 3. DER VOLKSHELD (Folk Hero) - Aus dem einfachen Volk aufgestiegen
 folk_hero = RPGBackground(
