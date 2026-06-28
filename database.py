@@ -1,5 +1,60 @@
 # Wir importieren den Bauplan aus der models.py
-from models import Race
+from models import Race, RPGClass, RPGBackground
+
+
+# ==========================================
+# D&D HINTERGRÜNDE (Backgrounds)
+# ==========================================
+
+# 1. DER AKOLITH (Acolyte) - Im Tempel aufgewachsen
+acolyte = RPGBackground(
+    name="Acolyte",
+    feature_name="Shelter of the Faithful",
+    feature_description="You and your companions can receive free healing and care at a temple of your faith."
+)
+acolyte.skill_proficiencies = ["Insight", "Religion"]
+acolyte.languages = ["Two languages of your choice"]
+
+# 2. DER KRIMINELLE (Criminal) - Diebe, Schmuggler, Halsabschneider
+criminal = RPGBackground(
+    name="Criminal",
+    feature_name="Criminal Contact",
+    feature_description="You have a reliable trustworthy contact who acts as your liaison to a network of other criminals."
+)
+criminal.skill_proficiencies = ["Deception", "Stealth"]
+
+# 3. DER VOLKSHELD (Folk Hero) - Aus dem einfachen Volk aufgestiegen
+folk_hero = RPGBackground(
+    name="Folk Hero",
+    feature_name="Rustic Hospitality",
+    feature_description="Since you come from the ranks of the common folk, you fit in among them with ease. You can find a place to hide or rest among commoners."
+)
+folk_hero.skill_proficiencies = ["Animal Handling", "Survival"]
+
+# 4. DER ADLIGE (Noble) - Wohlhabend und einflussreich
+noble = RPGBackground(
+    name="Noble",
+    feature_name="Position of Privilege",
+    feature_description="Thanks to your noble birth, people are inclined to think the best of you. You are welcome in high society, and people assume you have the right to be where you are."
+)
+noble.skill_proficiencies = ["History", "Persuasion"]
+noble.languages = ["One language of your choice"]
+
+# 5. DER GELEHRTE (Sage) - Verbringt sein Leben in Bibliotheken
+sage = RPGBackground(
+    name="Sage",
+    feature_name="Researcher",
+    feature_description="When you attempt to learn or recall a piece of lore, if you do not know the info, you often know where and from whom you can obtain it."
+)
+sage.skill_proficiencies = ["Arcana", "History"]
+sage.languages = ["Two languages of your choice"]
+
+
+# ==========================================
+# CENTRAL BACKGROUND LIST
+# ==========================================
+# Und auch hier: Eine zentrale Liste für unser späteres Web-Interface!
+ALL_BACKGROUNDS = [acolyte, criminal, folk_hero, noble, sage]
 
 # ==========================================
 # 1. DIE ZWERGE (Dwarves)
