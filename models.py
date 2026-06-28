@@ -46,3 +46,25 @@ class Race:
             "traits": final_traits,
             "speed": chosen_subrace.speed if chosen_subrace and chosen_subrace.speed else self.speed
         }
+
+    class RPGClass:
+        def __init__(self, name, hit_die):
+            self.name = name
+            self.hit_die = hit_die  # z.B. 10 für W10, 8 für W8
+
+            # Start-Ressourcen und Kompetenzen
+            self.proficiencies = {
+                "armor": [],
+                "weapons": [],
+                "saving_throws": []  # z.B. ["Str", "Con"]
+            }
+
+            # Eine Liste für Klassen-Features auf Level 1
+            self.features = {}  # z.B. {"Second Wind": "Beschreibung..."}
+
+            # Startausrüstung (später nützlich)
+            self.starting_equipment = []
+
+        def get_starting_hp(self, con_modifier):
+            """Berechnet die Start-HP auf Level 1 anhand des Konstitutions-Modifikators."""
+            return self.hit_die + con_modifier

@@ -170,3 +170,140 @@ tiefling.traits = {
 # ==========================================
 # Diese Liste speichert alle Haupt-Rassen. Das ist perfekt für dein späteres GUI!
 ALL_RACES = [dwarf, elf,halfling, human, dragonborn, gnome, half_elf, half_orc, tiefling]
+
+# Wichtig: Wir müssen unseren neuen Bauplan oben aus den Models importieren!
+# Ändere ganz oben in der Datei die Import-Zeile zu:
+# from models import Race, RPGClass
+
+# ==========================================
+# D&D KLASSEN (Classes)
+# ==========================================
+
+# 1. DER KÄMPFER (Fighter)
+fighter = RPGClass(name="Fighter", hit_die=10)
+fighter.proficiencies["armor"] = ["All Armor", "Shields"]
+fighter.proficiencies["weapons"] = ["Simple Weapons", "Martial Weapons"]
+fighter.proficiencies["saving_throws"] = ["Str", "Con"]
+fighter.features = {
+    "Fighting Style": "You adopt a particular style of fighting as your specialty (e.g., Archery, Defense).",
+    "Second Wind": "You have a limited well of stamina that you can draw on to protect yourself from harm. On your turn, you can use a bonus action to regain hit points equal to 1d10 + your fighter level."
+}
+
+# 2. DER MAGIER (Wizard)
+wizard = RPGClass(name="Wizard", hit_die=6)
+wizard.proficiencies["armor"] = ["None"]
+wizard.proficiencies["weapons"] = ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light Crossbows"]
+wizard.proficiencies["saving_throws"] = ["Int", "Wis"]
+wizard.features = {
+    "Spellcasting": "You can cast arcane spells from the wizard spell list.",
+    "Arcane Recovery": "Once per day when you finish a short rest, you can choose expended spell slots to recover."
+}
+
+# 3. DER SCHURKE (Rogue)
+rogue = RPGClass(name="Rogue", hit_die=8)
+rogue.proficiencies["armor"] = ["Light Armor"]
+rogue.proficiencies["weapons"] = ["Simple Weapons", "Hand Crossbows", "Longswords", "Rapiers", "Shortswords"]
+rogue.proficiencies["saving_throws"] = ["Dex", "Int"]
+rogue.features = {
+    "Expertise": "Your proficiency bonus is doubled for two of your skill proficiencies.",
+    "Sneak Attack": "Once per turn, you can deal an extra 1d6 damage to one creature you hit with an attack if you have advantage on the attack roll."
+}
+
+# 4. DER KLERIKER (Cleric)
+cleric = RPGClass(name="Cleric", hit_die=8)
+cleric.proficiencies["armor"] = ["Light Armor", "Medium Armor", "Shields"]
+cleric.proficiencies["weapons"] = ["Simple Weapons"]
+cleric.proficiencies["saving_throws"] = ["Wis", "Cha"]
+cleric.features = {
+    "Spellcasting": "You can cast divine spells from the cleric spell list.",
+    "Divine Domain": "You choose a domain related to your deity, which grants you domain spells and features."
+}
+# ==========================================
+# WEITERE D&D KLASSEN (Classes)
+# ==========================================
+
+# 5. DER BARBAR (Barbarian)
+barbarian = RPGClass(name="Barbarian", hit_die=12) # Höchste Hit Die im Spiel!
+barbarian.proficiencies["armor"] = ["Light Armor", "Medium Armor", "Shields"]
+barbarian.proficiencies["weapons"] = ["Simple Weapons", "Martial Weapons"]
+barbarian.proficiencies["saving_throws"] = ["Str", "Con"]
+barbarian.features = {
+    "Rage": "On your turn, you can enter a rage as a bonus action, gaining advantages on Strength checks and resistance to bludgeoning, piercing, and slashing damage.",
+    "Unarmored Defense": "While you are not wearing any armor, your Armor Class equals 10 + your Dexterity modifier + your Constitution modifier."
+}
+
+# 6. DER BARDE (Bard)
+bard = RPGClass(name="Bard", hit_die=8)
+bard.proficiencies["armor"] = ["Light Armor"]
+bard.proficiencies["weapons"] = ["Simple Weapons", "Hand Crossbows", "Longswords", "Rapiers", "Shortswords"]
+bard.proficiencies["saving_throws"] = ["Dex", "Cha"]
+bard.features = {
+    "Spellcasting": "You can cast arcane spells through your musical talent or artistic performance.",
+    "Bardic Inspiration": "You can inspire others through stirring words or music. You can use a bonus action to give one creature a Bardic Inspiration die (1d6)."
+}
+
+# 7. DER DRUIDE (Druid)
+druid = RPGClass(name="Druid", hit_die=8)
+# Druiden tragen aus Prinzip keine Rüstung aus Metall
+druid.proficiencies["armor"] = ["Light Armor", "Medium Armor", "Shields (non-metal)"]
+druid.proficiencies["weapons"] = ["Clubs", "Daggers", "Darts", "Javelins", "Maces", "Quarterstaffs", "Scimitars", "Sickles", "Slings", "Spears"]
+druid.proficiencies["saving_throws"] = ["Int", "Wis"]
+druid.features = {
+    "Spellcasting": "You can cast divine spells drawing from the power of nature.",
+    "Druidic": "You know Druidic, the secret language of druids. You can speak the language and use it to leave hidden messages."
+}
+
+# 8. DER MÖNCH (Monk)
+monk = RPGClass(name="Monk", hit_die=8)
+monk.proficiencies["armor"] = ["None"]
+monk.proficiencies["weapons"] = ["Simple Weapons", "Shortswords"]
+monk.proficiencies["saving_throws"] = ["Str", "Dex"]
+monk.features = {
+    "Unarmored Defense": "While not wearing armor and not wielding a shield, your AC equals 10 + Dex modifier + Wis modifier.",
+    "Martial Arts": "You can use Dexterity instead of Strength for the attack and damage rolls of your unarmed strikes and monk weapons."
+}
+
+# 9. DER PALADIN (Paladin)
+paladin = RPGClass(name="Paladin", hit_die=10)
+paladin.proficiencies["armor"] = ["All Armor", "Shields"]
+paladin.proficiencies["weapons"] = ["Simple Weapons", "Martial Weapons"]
+paladin.proficiencies["saving_throws"] = ["Wis", "Cha"]
+paladin.features = {
+    "Divine Sense": "The presence of strong evil registers on your senses like a noxious odor. As an action, you can detect celestial, fiend, or undead creatures.",
+    "Lay on Hands": "Your blessed touch can heal wounds. You have a pool of healing power that replenishes when you take a long rest."
+}
+
+# 10. DER WALDLÄUFER (Ranger)
+ranger = RPGClass(name="Ranger", hit_die=10)
+ranger.proficiencies["armor"] = ["Light Armor", "Medium Armor", "Shields"]
+ranger.proficiencies["weapons"] = ["Simple Weapons", "Martial Weapons"]
+ranger.proficiencies["saving_throws"] = ["Str", "Dex"]
+ranger.features = {
+    "Favored Enemy": "You have significant experience studying, tracking, hunting, and even talking to a certain type of enemy.",
+    "Natural Explorer": "You are particularly familiar with one type of natural environment and are adept at traveling and surviving in such regions."
+}
+
+# 11. DER ZAUBERER (Sorcerer)
+sorcerer = RPGClass(name="Sorcerer", hit_die=6)
+sorcerer.proficiencies["armor"] = ["None"]
+sorcerer.proficiencies["weapons"] = ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light Crossbows"]
+sorcerer.proficiencies["saving_throws"] = ["Con", "Cha"]
+sorcerer.features = {
+    "Spellcasting": "An event in your past, or in the life of an ancestor, left an indelible mark on you, infusing you with arcane magic. You cast spells using Charisma.",
+    "Sorcerous Origin": "Choose a sorcerous origin, which describes the source of your innate magical power (e.g., Draconic Bloodline)."
+}
+
+# 12. DER HEXENMEISTER (Warlock)
+warlock = RPGClass(name="Warlock", hit_die=8)
+warlock.proficiencies["armor"] = ["Light Armor"]
+warlock.proficiencies["weapons"] = ["Simple Weapons"]
+warlock.proficiencies["saving_throws"] = ["Wis", "Cha"]
+warlock.features = {
+    "Pact Magic": "Your arcane research and the magic bestowed upon you by your patron have given you facility with spells.",
+    "Otherworldly Patron": "You have struck a bargain with an otherworldly being of your choice (e.g., The Fiend)."
+}
+# ==========================================
+# CENTRAL CLASS LIST
+# ==========================================
+# Genau wie bei den Rassen, sammeln wir alle Klassen in einer zentralen Liste für das GUI!
+ALL_CLASSES = [fighter, wizard, rogue, cleric,barbarian, bard, druid, monk, paladin, ranger, sorcerer, warlock]
