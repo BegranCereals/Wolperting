@@ -1,250 +1,293 @@
 import streamlit as st
-import json
-import os
-import random
-from models import Character
+import math
 from database import ALL_RACES, ALL_CLASSES, ALL_BACKGROUNDS
+from models import Character  # Stelle sicher, dass Character importiert ist
 
-st.set_page_config(page_title="Wolperting RPG", page_icon="🧙‍♂️", layout="wide")
+# Page Configuration für ein breiteres DnD-Sheet
+st.set_page_config(page_title="DnD Character Sheet", layout="wide")
 
-# Ordner für gespeicherte Charaktere anlegen
-SAVE_DIR = "saved_characters"
-if not os.path.exists(SAVE_DIR):
-    os.makedirs(SAVE_DIR)
+# --- INITIAL SESSION STATES ---
+if "char" not in st.session_state:
+    # Standard-Dummy-Charakter, falls noch keiner erstellt wurde
+    st.session_state.char = Character(name="Held ohne Namen")
 
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.title("🐺 Wolperting Hauptmenü")
-page = st.sidebar.radio("Wohin möchtest du?", ["Charakter-Editor", "Gespeicherte Helden", "D&D 5e Datenbank"])
+if "wizard_step" not in st.session_state:
+    st.session_state.wizard_step = 1
 
-# Farb-Legende in der Sidebar anzeigen
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Farb-Legende (Herkunft):**")
-st.sidebar.markdown("<span style='color:#FF4B4B'>🔴 Rasse (Race)</span>", unsafe_allow_html=True)
-st.sidebar.markdown("<span style='color:#00D4B2'>🟢 Klasse (Class)</span>", unsafe_allow_html=True)
-st.sidebar.markdown("<span style='color:#0080FF'>🔵 Hintergrund (Background)</span>", unsafe_allow_html=True)
+# CSS für die Rahmen-Optik (Kacheln wie in image.png)
+st.markdown("""
+    <style>
+    .dnd-box {
+        border: 2px solid #2e2e2e;
+        padding: 15px;
+        border-radius: 5px;
+        text-align: center;
+        background-color: #fcfaf2;
+        color: #1e1e1e;
+        margin-bottom: 10px;
+    }
+    .dnd-title {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #666;
+        margin-top: 5px;
+    }
+    .dnd-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# ==========================================
-# SEITE 1: CHARAKTER-EDITOR
-# ==========================================
-if page == "Charakter-Editor":
-    st.title("🧙‍♂️ Charakter-Editor")
 
-    # 1. Grunddaten
-    char_name = st.text_input("Name des Helden:", value="Gimli")
+# --- POPUP DIALOG (CHARAKTER CREATOR WIZARD) ---
+@st.dialog("Charakter Erstellen", width="large")
+def character_creator_wizard():
+    step = st.session_state.wizard_step
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
+    # Progress Bar oben im Popup
+    st.progress(step / 4, text=f"Schritt {step} von 4")
+
+    if step == 1:
+        st.subheader("Schritt 1: Basis & Rasse")
+        char_name = st.text_input("Charakter Name", value=st.session_state.char.name)
+
         race_names = [r.name for r in ALL_RACES]
-        if race_names:
-            selected_race = st.selectbox("Rasse:", race_names)
-            chosen_race = ALL_RACES[race_names.index(selected_race)]
-        else:
-            st.error("Keine Rassen in der Datenbank gefunden!")
-            chosen_race = None
+        chosen_race_name = st.selectbox("Rasse wählen", race_names)
 
-    with col2:
+        # Unterrassen-Logik falls vorhanden
+        selected_race = next(r for r in ALL_RACES if r.name == chosen_race_name)
         chosen_subrace = None
-        if chosen_race and chosen_race.subraces:
-            sub_names = [sub.name for sub in chosen_race.subraces]
-            selected_sub = st.selectbox("Unterrasse:", sub_names)
-            chosen_subrace = chosen_race.subraces[sub_names.index(selected_sub)]
-        else:
-            st.write("Keine Unterrasse verfügbar.")
+        if selected_race.subraces:
+            subrace_names = [sub.name for sub in selected_race.subraces]
+            chosen_subrace_name = st.selectbox("Unterrassen-Spezialisierung", subrace_names)
+            chosen_subrace = next(sub for sub in selected_race.subraces if sub.name == chosen_subrace_name)
 
-    with col3:
+        if st.button("Weiter zu Klasse ➡️"):
+            st.session_state.char.name = char_name
+            st.session_state.char.race = selected_race
+            st.session_state.char.subrace = chosen_subrace
+            st.session_state.wizard_step = 2
+            st.rerun()
+
+    elif step == 2:
+        st.subheader("Schritt 2: Klasse wählen")
         class_names = [c.name for c in ALL_CLASSES]
-        if class_names:
-            selected_class = st.selectbox("Klasse:", class_names)
-            chosen_class = ALL_CLASSES[class_names.index(selected_class)]
-        else:
-            chosen_class = None
+        chosen_class_name = st.selectbox("Klasse wählen", class_names)
 
-    selected_bg = st.selectbox("Hintergrund:", [b.name for b in ALL_BACKGROUNDS])
-    chosen_bg = ALL_BACKGROUNDS[[b.name for b in ALL_BACKGROUNDS].index(selected_bg)]
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Zurück"):
+                st.session_state.wizard_step = 1
+                st.rerun()
+        with col2:
+            if st.button("Weiter zu Background ➡️"):
+                selected_class = next(c for c in ALL_CLASSES if c.name == chosen_class_name)
+                st.session_state.char.rpg_class = selected_class
+                st.session_state.wizard_step = 3
+                st.rerun()
 
-    st.divider()
+    elif step == 3:
+        st.subheader("Schritt 3: Hintergrund & Gesinnung")
+        bg_names = [b.name for b in ALL_BACKGROUNDS]
+        chosen_bg_name = st.selectbox("Hintergrund", bg_names)
 
-    # 2. ATTRIBUTS-GENERIERUNG
-    st.header("🎲 Attributswerte bestimmen")
-    gen_method = st.radio("Methode wählen:",
-                          ["Standard Array", "Points Buy (Standard 10er Basis)", "Würfeln (4d6 drop lowest)"])
+        alignment = st.selectbox("Gesinnung (Alignment)", [
+            "Lawful Good", "Neutral Good", "Chaotic Good",
+            "Lawful Neutral", "True Neutral", "Chaotic Neutral",
+            "Lawful Evil", "Neutral Evil", "Chaotic Evil"
+        ])
 
-    base_stats = {"Str": 10, "Dex": 10, "Con": 10, "Int": 10, "Wis": 10, "Cha": 10}
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Zurück"):
+                st.session_state.wizard_step = 2
+                st.rerun()
+        with col2:
+            if st.button("Weiter zu Attributen ➡️"):
+                selected_bg = next(b for b in ALL_BACKGROUNDS if b.name == chosen_bg_name)
+                st.session_state.char.background = selected_bg
+                # Hier könntest du das Alignment im Modell speichern, falls das Attribut existiert:
+                # st.session_state.char.alignment = alignment
+                st.session_state.wizard_step = 4
+                st.rerun()
 
-    if gen_method == "Standard Array":
-        st.write("Verteile das Standard-Array: **15, 14, 13, 12, 10, 8**")
-        cols = st.columns(6)
-        available_scores = [15, 14, 13, 12, 10, 8]
-        for i, stat in enumerate(base_stats.keys()):
-            base_stats[stat] = cols[i].selectbox(f"{stat}", available_scores, index=i)
+    elif step == 4:
+        st.subheader("Schritt 4: Attribute würfeln/verteilen")
+        st.write("Verteile deine Basis-Werte (Standard-Werte vorausgewählt):")
 
-    elif gen_method == "Points Buy (Standard 10er Basis)":
-        st.write("Einfaches Punktesystem (Startwert 10, passe Werte an):")
-        cols = st.columns(6)
-        for i, stat in enumerate(base_stats.keys()):
-            base_stats[stat] = cols[i].number_input(f"{stat}", min_value=8, max_value=18, value=10)
+        stats = ["Str", "Con", "Dex", "Int", "Wis", "Cha"]
+        new_base = {}
+        for s in stats:
+            new_base[s] = st.number_input(f"Basis {s}", min_value=3, max_value=20, value=10)
 
-    elif gen_method == "Würfeln (4d6 drop lowest)":
-        if st.button("🎲 Jetzt Würfel werfen!") or 'rolled_stats' not in st.session_state:
-            rolled = []
-            for _ in range(6):
-                dice = [random.randint(1, 6) for _ in range(4)]
-                dice.remove(min(dice))
-                rolled.append(sum(dice))
-            st.session_state.rolled_stats = rolled
-        st.info(f"Deine gewürfelten Werte: {st.session_state.rolled_stats}")
-        cols = st.columns(6)
-        for i, stat in enumerate(base_stats.keys()):
-            base_stats[stat] = cols[i].selectbox(f"{stat} zuweisen", st.session_state.rolled_stats, index=i)
-
-    # Charakter-Logik füttern
-    held = Character(name=char_name)
-    held.race = chosen_race
-    held.subrace = chosen_subrace
-    held.rpg_class = chosen_class
-    held.background = chosen_bg
-    held.base_attributes = base_stats
-
-    daten = held.get_final_stats()
-    st.divider()
-    st.header("🎭 Persönlichkeit & Identität")
-    st.write(f"Vorschläge basierend auf deinem Hintergrund: **{chosen_bg.name}**")
-
-
-    # Helferfunktion, um Dropdowns mit "Selbst schreiben"-Option zu füllen
-    def build_identity_select(label, suggestions, default_text):
-        options = suggestions + ["📝 Eigenen Text schreiben..."]
-        selection = st.selectbox(label, options)
-        if selection == "📝 Eigenen Text schreiben...":
-            return st.text_area(f"Eigener Text für {label}:", value=default_text)
-        return selection
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Zurück"):
+                st.session_state.wizard_step = 3
+                st.rerun()
+        with col2:
+            if st.button("Character Sheet generieren! 🎲"):
+                st.session_state.char.base_attributes = new_base
+                st.session_state.wizard_step = 1  # Reset für das nächste Mal
+                st.success("Charakter erfolgreich geladen!")
+                st.rerun()
 
 
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        char_traits = build_identity_select("Personality Traits", chosen_bg.suggested_traits,
-                                            "Ich helfe immer denen...")
-        char_ideals = build_identity_select("Ideals", chosen_bg.suggested_ideals, "Gerechtigkeit...")
-    with col_p2:
-        char_bonds = build_identity_select("Bonds", chosen_bg.suggested_bonds, "Ich würde mein Leben geben...")
-        char_flaws = build_identity_select("Flaws", chosen_bg.suggested_flaws, "Ich kann Gold nicht widerstehen...")
+# --- HAUPT-UI (DAS CHARAKTERBLATT AUS image.png) ---
 
-    # Werte in das Objekt übertragen
-    held.personality_traits = char_traits
-    held.ideals = char_ideals
-    held.bonds = char_bonds
-    held.flaws = char_flaws
-    # SPEICHERN BUTTON
-    if st.button("💾 Charakter permanent abspeichern"):
-        file_path = os.path.join(SAVE_DIR, f"{char_name.lower().replace(' ', '_')}.json")
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(held.to_json(), f, indent=4)
-        st.success(f"🎉 Held {char_name} wurde erfolgreich als JSON-Datei gespeichert!")
+st.title("🧙‍♂️ D&D 5e Character Sheet Hub")
 
-    st.divider()
+# Button um den Creator als Popup zu öffnen
+if st.button("➕ Neuen Charakter erstellen (Popup)"):
+    character_creator_wizard()
 
-    # --- DIGITALE ANZEIGE (CHARAKTERBLATT) ---
-    st.header(f"📜 Live-Charakterblatt: {daten['name']}")
-    st.metric(label="❤️ Lebenspunkte (HP)", value=daten['hp'])
+st.write("---")
 
-    # Attribute mit farbigen Boni-Meldungen
-    st.subheader("⚔️ Finale Attribute (inkl. Rassenboni)")
-    attr_cols = st.columns(6)
-    for i, (stat, val) in enumerate(daten["attributes"].items()):
-        mod = daten["modifiers"][stat]
+# Daten aus dem Charaktermodell ziehen
+char_data = st.session_state.char.get_final_stats()
+char_obj = st.session_state.char
+
+## --- REIHE 1: BILD & KLASSE/RASSE/BACKGROUND ---
+row1_col1, row1_col2 = st.columns([1, 3])
+
+with row1_col1:
+    # Quadrat für das Bild
+    st.markdown(f"""
+        <div class="dnd-box" style="height: 140px; display: flex; align-items: center; justify-content: center;">
+            <div>
+                <span style="font-size: 2.5rem;">👤</span><br>
+                <div class="dnd-title">{char_data['name']}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with row1_col2:
+    # Text-Details Block daneben
+    klasse_name = char_obj.rpg_class.name if char_obj.rpg_class else "Keine Klasse"
+    rasse_name = char_obj.race.name if char_obj.race else "Keine Rasse"
+    bg_name = char_obj.background.name if char_obj.background else "Kein Hintergrund"
+    alignment_val = getattr(char_obj, 'alignment', 'Neutral')
+
+    st.markdown(f"""
+        <div class="dnd-box" style="height: 140px; text-align: left;">
+            <h3 style="margin: 0; color: #cc1111;">{klasse_name} | {rasse_name}</h3>
+            <p style="margin: 5px 0 0 0; font-size: 1.1rem;">
+                <b>Hintergrund:</b> {bg_name} | <b>Gesinnung:</b> {alignment_val}<br>
+                <b>Stufe:</b> {char_data['level']}
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+## --- REIHE 2: AC, MVMSPD, HP ---
+st.write("")
+row2_col1, row2_col2, row2_col3 = st.columns(3)
+
+# Wir errechnen AC (10 + Dex Modifikator als vereinfachtes Standard)
+dex_mod = char_data["modifiers"].get("Dex", 0)
+ac_val = 10 + dex_mod
+speed_val = char_obj.race.speed if char_obj.race else 30
+
+with row2_col1:
+    st.markdown(
+        f'<div class="dnd-box"><div class="dnd-value">{ac_val}</div><div class="dnd-title">Armor Class (AC)</div></div>',
+        unsafe_allow_html=True)
+with row2_col2:
+    st.markdown(
+        f'<div class="dnd-box"><div class="dnd-value">{speed_val} ft.</div><div class="dnd-title">Movement Speed (Mvmspd)</div></div>',
+        unsafe_allow_html=True)
+with row2_col3:
+    st.markdown(
+        f'<div class="dnd-box"><div class="dnd-value" style="color: #cc1111;">{char_data["hp"]}</div><div class="dnd-title">Hit Points (HP)</div></div>',
+        unsafe_allow_html=True)
+
+## --- REIHE 3: DIE ATTRIBUTE (MODIFIKATOREN GROSS) ---
+st.write("")
+# 5 Spalten laut Skizze (Str, Con, Dex, Int, Wis - Cha packen wir als 6. dazu oder lassen es fließen)
+attr_cols = st.columns(6)
+stats_ordered = ["Str", "Con", "Dex", "Int", "Wis", "Cha"]
+
+for i, stat in enumerate(stats_ordered):
+    with attr_cols[i]:
+        mod = char_data["modifiers"].get(stat, 0)
         sign = "+" if mod >= 0 else ""
-        attr_cols[i].metric(label=stat, value=val, delta=f"{sign}{mod}")
+        score = char_data["attributes"].get(stat, 10)
 
-        # Farbhilfe für Attributs-Boni
-        if stat in daten["bonus_sources"]["Race"]:
-            attr_cols[i].markdown(
-                f"<span style='color:#FF4B4B'>+{daten['bonus_sources']['Race'][stat]} von Rasse</span>",
+        # Modifikator groß oben, Score klein drunter laut Skizze
+        st.markdown(f"""
+            <div class="dnd-box">
+                <div class="dnd-value">{sign}{mod}</div>
+                <div style="font-size: 1.1rem; font-weight: bold;">{stat}</div>
+                <div style="font-size: 0.8rem; color: #555;">Score: {score}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+# Inspiration & Prof Bonus direkt unter den Attributen zentriert
+row3_sub1, row3_sub2 = st.columns(2)
+with row3_sub1:
+    st.markdown('<div class="dnd-box" style="padding: 5px;"><div class="dnd-title">💡 Inspiration: 1</div></div>',
                 unsafe_allow_html=True)
+with row3_sub2:
+    prof_bonus = 2 + math.floor((char_data["level"] - 1) / 4)
+    st.markdown(
+        f'<div class="dnd-box" style="padding: 5px;"><div class="dnd-title">⚔️ Prof. Bonus: +{prof_bonus}</div></div>',
+        unsafe_allow_html=True)
 
-    # Features & Eigenschaften mit farbigen Markierungen
-    st.subheader("✨ Eigenschaften & Features")
-    col_left, col_right = st.columns(2)
+## --- REIHE 4: TRAITS, PROFICIENCIES, LANGUAGES ---
+st.write("")
+st.subheader("Traits / Proficiencies / Languages / Etc.")
+with st.container(border=True):
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        st.write("**Rassen-Eigenschaften & Features:**")
+        race_traits = char_data["traits"].get("Race", {})
+        if race_traits:
+            for t_name, t_desc in race_traits.items():
+                st.write(f"• **{t_name}:** {t_desc}")
+        else:
+            st.write("_Keine speziellen Merkmale_")
 
-    with col_left:
-        st.markdown("**Volks-Eigenschaften (Race):**")
-        for t_name, t_desc in daten["traits"]["Race"].items():
-            st.markdown(f"<span style='color:#FF4B4B'>**{t_name}**: {t_desc}</span>", unsafe_allow_html=True)
+    with col_t2:
+        st.write("**Sprachen:**")
+        bg_langs = char_data["languages"].get("Background", [])
+        race_langs = char_data["languages"].get("Race", [])
+        all_langs = list(set(race_langs + bg_langs))
+        if all_langs:
+            st.write(", ".join(all_langs))
+        else:
+            st.write("Common")
 
-        st.markdown("\n**Klassen-Features (Class):**")
-        for t_name, t_desc in daten["traits"]["Class"].items():
-            st.markdown(f"<span style='color:#00D4B2'>**{t_name}**: {t_desc}</span>", unsafe_allow_html=True)
+## --- REIHE 5: EQUIPMENT, SPELLS, SKILLS ---
+st.write("")
+row5_col1, row5_col2, row5_col3 = st.columns(3)
 
-    with col_right:
-        st.markdown("**Kompetenzen & Kompetenzquellen:**")
+with row5_col1:
+    st.markdown(
+        '<div style="background-color: #2e2e2e; color: white; padding: 5px; text-align:center; font-weight:bold;">Equipment</div>',
+        unsafe_allow_html=True)
+    with st.container(border=True):
+        st.write("• Startausrüstung aus Background")
+        st.write("• 15 Goldmünzen (gp)")
+        st.write("• Gewöhnliche Kleidung")
 
-        # Rasse Kompetenzen
-        r_prof = daten["proficiencies"]["Race"]
-        if r_prof["weapons"] or r_prof["armor"]:
-            st.markdown(
-                f"<span style='color:#FF4B4B'>Rasse schenkt: Weapons: {r_prof['weapons']}, Armor: {r_prof['armor']}</span>",
-                unsafe_allow_html=True)
+with row5_col2:
+    st.markdown(
+        '<div style="background-color: #2e2e2e; color: white; padding: 5px; text-align:center; font-weight:bold;">Spells & Slots</div>',
+        unsafe_allow_html=True)
+    with st.container(border=True):
+        st.write("**Slots:** Lvl 1: [ ] [ ]")
+        st.write("---")
+        st.write("_Keine Zauber vorbereitet oder vergeben_")
 
-        # Klasse Kompetenzen
-        c_prof = daten["proficiencies"]["Class"]
-        if c_prof["weapons"] or c_prof["armor"]:
-            st.markdown(
-                f"<span style='color:#00D4B2'>Klasse schenkt: Weapons: {c_prof['weapons']}, Armor: {c_prof['armor']}</span>",
-                unsafe_allow_html=True)
-
-        # Background Kompetenzen
-        b_prof = daten["proficiencies"]["Background"]
-        if b_prof["skills"]:
-            st.markdown(f"<span style='color:#0080FF'>Hintergrund schenkt Skills: {b_prof['skills']}</span>",
-                        unsafe_allow_html=True)
-
-
-# ==========================================
-# SEITE 2: GESPEICHERTE HELDEN
-# ==========================================
-elif page == "Gespeicherte Helden":
-    st.title("📂 Geladene & Gespeicherte Charaktere")
-    files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
-
-    if not files:
-        st.info("Noch keine gespeicherten Charaktere gefunden. Erstelle erst einen Helden im Editor!")
-    else:
-        selected_file = st.selectbox("Wähle einen Charakter zum Laden:", files)
-
-        if st.button("🔄 Charakterblatt anzeigen"):
-            with open(os.path.join(SAVE_DIR, selected_file), "r", encoding="utf-8") as f:
-                char_data = json.load(f)
-
-            st.success(f"Daten für {char_data['name']} geladen!")
-            st.json(char_data)  # Zeigt die rohe JSON-Struktur übersichtlich an
-
-
-# ==========================================
-# SEITE 3: 5E TOOLS DATENBANK-BROWSER
-# ==========================================
-elif page == "D&D 5e Datenbank":
-    st.title("📚 D&D 5e Kompendium-Browser")
-    st.write("Hier kannst du alle rohen Datenbank-Einträge durchstöbern")
-
-    sub_page = st.tabs(["🧬 Rassen (Races)", "⚔️ Klassen (Classes)", "📜 Hintergründe (Backgrounds)"])
-
-    with sub_page[0]:
-        for r in ALL_RACES:
-            with st.expander(f"Race: {r.name} (Speed: {r.speed})"):
-                st.write(f"**Attributs-Boni:** {r.ability_bonuses}")
-                st.write(f"**Sprachen:** {r.languages}")
-                st.write(f"**Eigenschaften:** {r.traits}")
-                if r.subraces:
-                    st.write(f"**Verfügbare Unterrassen:** {[sub.name for sub in r.subraces]}")
-
-    with sub_page[1]:
-        for c in ALL_CLASSES:
-            with st.expander(f"Class: {c.name} (Hit Die: d{c.hit_die})"):
-                st.write(f"**Rettungswürfe:** {c.proficiencies['saving_throws']}")
-                st.write(f"**Waffen & Rüstung:** {c.proficiencies['weapons']} | {c.proficiencies['armor']}")
-                st.write(f"**Klassenfeatures:** {c.features}")
-
-    with sub_page[2]:
-        for b in ALL_BACKGROUNDS:
-            with st.expander(f"Background: {b.name}"):
-                st.write(f"**Feature:** {b.feature_name} - *{b.feature_description}*")
-                st.write(f"**Schenkt Fertigkeiten:** {b.skill_proficiencies}")
+with row5_col3:
+    st.markdown(
+        '<div style="background-color: #2e2e2e; color: white; padding: 5px; text-align:center; font-weight:bold;">Skills</div>',
+        unsafe_allow_html=True)
+    with st.container(border=True):
+        # Hier listen wir die gelernten Skills aus dem Background auf
+        bg_skills = char_data["proficiencies"]["Background"].get("skills", [])
+        if bg_skills:
+            for skill in bg_skills:
+                st.write(f"☑️ {skill}")
+        else:
+            st.write("_Keine gelernten Skills gewählt_")
